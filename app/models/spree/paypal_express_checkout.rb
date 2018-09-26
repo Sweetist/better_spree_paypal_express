@@ -1,12 +1,7 @@
 module Spree
   class PaypalExpressCheckout < ActiveRecord::Base
     def actions
-      %w[void credit]
-    end
-
-    # Indicates whether its possible to void the payment.
-    def can_void?(payment)
-      !payment.failed? && !payment.void?
+      %w[credit]
     end
 
     # Indicates whether its possible to credit the payment.  Note that most gateways require that the
