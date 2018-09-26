@@ -141,7 +141,13 @@ module Spree
       { SetExpressCheckoutRequestDetails: {
         InvoiceID: order.number,
         BuyerEmail: order.email,
-        ReturnURL: confirm_paypal_url(payment_method_id: params[:payment_method_id], utm_nooverride: 1, order_id: order.id, amount: params[:amount]),
+        ReturnURL: confirm_paypal_url(
+          payment_method_id: params[:payment_method_id],
+          utm_nooverride: 1,
+          order_id: order.id,
+          amount: params[:amount],
+          commit: params[:commit]
+        ),
         CancelURL:  cancel_paypal_url,
         SolutionType: payment_method.preferred_solution.present? ? payment_method.preferred_solution : 'Mark',
         LandingPage: payment_method.preferred_landing_page.present? ? payment_method.preferred_landing_page : 'Billing',
