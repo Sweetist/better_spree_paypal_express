@@ -32,14 +32,20 @@ module Spree
       begin
         pp_response = provider.set_express_checkout(pp_request)
         if pp_response.success?
-          redirect_to provider.express_checkout_url(pp_response, :useraction => 'commit')
+          respond_to do |format|
+            format.js { render js: "window.location = '#{provider.express_checkout_url(pp_response, :useraction => 'commit')}';" }
+          end
         else
           flash[:errors] = Spree.t('flash.generic_error', :scope => 'paypal', :reasons => pp_response.errors.map(&:long_message).join(" "))
-          redirect_to edit_order_path(order)
+          respond_to do |format|
+            format.js { render js: "window.location = '#{edit_order_path(order)}';" }
+          end
         end
       rescue SocketError
         flash[:errors] = Spree.t('flash.connection_failed', :scope => 'paypal')
-        redirect_to edit_order_path(order)
+        respond_to do |format|
+          format.js { render js: "window.location = '#{edit_order_path(order)}';" }
+        end
       end
     end
 
