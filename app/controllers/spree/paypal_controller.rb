@@ -145,7 +145,7 @@ module Spree
 
     def express_checkout_request_details(order, items)
       { SetExpressCheckoutRequestDetails: {
-        InvoiceID: order.number,
+        InvoiceID: order.number + '_' + (order.payments.count + 1).to_s,
         BuyerEmail: order.email,
         ReturnURL: confirm_paypal_url(
           payment_method_id: params[:payment_method_id],
