@@ -116,9 +116,9 @@ module Spree
       rescue Spree::Core::GatewayError => e
         # invoke_callbacks(:create, :fails)
         @account_payment.destroy!
-        error_message = e.message == 'Your card number is incorrect.' ? 'Card number is invalid' : e.message
-        flash.now[:errors] = [error_message]
-        render :new
+        error_message = e.message == 'Internal Error' ? 'Unable to reach PayPal servers. Please contact help@getsweet.com for additional information.' : e.message
+        flash[:errors] = [error_message]
+        redirect_to edit_order_path(@order)
       end
     end
 
