@@ -1,33 +1,9 @@
 module Spree
   class PaypalController < StoreController
+    include Spree::Backend::Callbacks
     def express
       order = current_spree_user.company.purchase_orders.friendly.find(params[:order_id])
-      items = order.line_items.map(&method(:line_item))
-
-      additional_adjustments = order.all_adjustments.additional
-      tax_adjustments = additional_adjustments.tax
-      shipping_adjustments = additional_adjustments.shipping
-
-      additional_adjustments.eligible.each do |adjustment|
-        next if (tax_adjustments + shipping_adjustments).include?(adjustment)
-        items << {
-          Name: adjustment.label,
-          Quantity: 1,
-          Amount: {
-            currencyID: order.currency,
-            value: adjustment.amount
-          }
-        }
-      end
-
-      # Because PayPal doesn't accept $0 items at all.
-      # See #10
-      # https://cms.paypal.com/uk/cgi-bin/?cmd=_render-content&content_ID=developer/e_howto_api_ECCustomizing
-      # "It can be a positive or negative value but not zero."
-      items.reject! do |item|
-        item[:Amount][:value].zero?
-      end
-      pp_request = provider.build_set_express_checkout(express_checkout_request_details(order, items))
+      pp_request = provider.build_set_express_checkout(express_checkout_request_details(order))
 
       begin
         pp_response = provider.set_express_checkout(pp_request)
@@ -50,6 +26,7 @@ module Spree
     end
 
     def confirm
+      invoke_callbacks(:create, :before)
       @order = current_spree_user.company.purchase_orders.friendly.find(params[:order_id])
       @account_payment ||= @order.account_payments.new(
         source: Spree::PaypalExpressCheckout.create(
@@ -84,14 +61,14 @@ module Spree
         @account_payment.save
         if @account_payment.errors.any? \
           || !@order.valid_for_customer_submit?({skip_payment: true})
-          # invoke_callbacks(:create, :fails)
+          invoke_callbacks(:create, :fails)
           flash.now[:errors] = @account_payment.errors.full_messages + @order.errors_including_line_items
           respond_to do |format|
-            format.html { render :new }
-            format.js {}
+            format.html { redirect_to edit_order_path(@order) }
+            format.js { render js: 'window.location.reload();' }
           end
         else
-          # invoke_callbacks(:create, :after)
+          invoke_callbacks(:create, :after)
           @order.channel = Spree::Company::B2B_PORTAL_CHANNEL if @order.state == 'cart'
           ActiveRecord::Base.transaction do
             while States[@order.state] < States['complete'] && @order.next; end
@@ -114,7 +91,7 @@ module Spree
           end
         end
       rescue Spree::Core::GatewayError => e
-        # invoke_callbacks(:create, :fails)
+        invoke_callbacks(:create, :fails)
         @account_payment.destroy!
         error_message = e.message == 'Internal Error' ? 'Unable to reach PayPal servers. Please contact help@getsweet.com for additional information.' : e.message
         flash[:errors] = [error_message]
@@ -130,23 +107,10 @@ module Spree
 
     private
 
-    def line_item(item)
-      {
-        Name: item.product.name,
-        Number: item.variant.sku,
-        Quantity: item.quantity,
-        Amount: {
-          currencyID: item.order.currency,
-          value: item.price
-        },
-        ItemCategory: 'Physical'
-      }
-    end
-
-    def express_checkout_request_details(order, items)
+    def express_checkout_request_details(order)
       { SetExpressCheckoutRequestDetails: {
         InvoiceID: order.number + '_' + (order.payments.count + 1).to_s,
-        BuyerEmail: order.email,
+        BuyerEmail: order.valid_emails.first.to_s,
         ReturnURL: confirm_paypal_url(
           payment_method_id: params[:payment_method_id],
           utm_nooverride: 1,
@@ -159,7 +123,7 @@ module Spree
         LandingPage: payment_method.preferred_landing_page.present? ? payment_method.preferred_landing_page : 'Billing',
         cppheaderimage: payment_method.preferred_logourl.present? ? payment_method.preferred_logourl : '',
         NoShipping: 1,
-        PaymentDetails: [payment_details(items)]
+        PaymentDetails: [payment_details]
       } }
     end
 
@@ -171,7 +135,7 @@ module Spree
       payment_method.provider
     end
 
-    def payment_details(items)
+    def payment_details
       order = current_spree_user.company.purchase_orders.friendly.find(params[:order_id])
       payment_amount = params[:amount]
       # This retrieves the cost of shipping after promotions are applied
@@ -223,13 +187,13 @@ module Spree
 
       {
         Name: order.bill_address.try(:full_name),
-        Street1: order.bill_address.address1,
-        Street2: order.bill_address.address2,
-        CityName: order.bill_address.city,
-        Phone: order.bill_address.phone,
-        StateOrProvince: order.bill_address.state_text,
-        Country: order.bill_address.country.iso,
-        PostalCode: order.bill_address.zipcode
+        Street1: order.bill_address.try(:address1),
+        Street2: order.bill_address.try(:address2),
+        CityName: order.bill_address.try(:city),
+        Phone: order.bill_address.try(:phone),
+        StateOrProvince: order.bill_address.try(:state_text),
+        Country: order.bill_address.try(:country).try(:iso),
+        PostalCode: order.bill_address.try(:zipcode)
       }
     end
 

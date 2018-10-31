@@ -84,7 +84,7 @@ module Spree
       refund_transaction_response = provider.refund_transaction(refund_transaction)
       if refund_transaction_response.success?
         payment.source.update_attributes(
-          refunded_at: Time.now,
+          refunded_at: Time.current,
           refund_transaction_id: refund_transaction_response.RefundTransactionID,
           state: 'refunded',
           refund_type: refund_type
