@@ -136,49 +136,19 @@ module Spree
     end
 
     def payment_details
-      order = current_spree_user.company.purchase_orders.friendly.find(params[:order_id])
+      order = current_spree_user.company
+                                .purchase_orders
+                                .friendly.find(params[:order_id])
       payment_amount = params[:amount]
-      # This retrieves the cost of shipping after promotions are applied
-      # For example, if shippng costs $10, and is free with a promotion, shipment_sum is now $10
-      shipment_sum = 0
-
-      # This calculates the item sum based upon what is in the order total, but not for shipping
-      # or tax.  This is the easiest way to determine what the items should cost, as that
-      # functionality doesn't currently exist in Spree core
-      item_sum = order.total - shipment_sum - order.additional_tax_total
-
-      if item_sum.zero?
-        # Paypal does not support no items or a zero dollar ItemTotal
-        # This results in the order summary being simply "Current purchase"
-        {
-          OrderTotal: {
-            currencyID: order.currency,
-            value: payment_amount
-          }
-        }
-      else
-        {
-          OrderTotal: {
-            currencyID: order.currency,
-            value: payment_amount
-          },
-          ItemTotal: {
-            currencyID: order.currency,
-            value: payment_amount
-          },
-          ShippingTotal: {
-            currencyID: order.currency,
-            value: shipment_sum
-          },
-          TaxTotal: {
-            currencyID: order.currency,
-            value: 0
-          },
-          ShipToAddress: address_options,
-          ShippingMethod: 'Shipping Method Name Goes Here',
-          PaymentAction: 'Sale'
-        }
-      end
+      {
+        OrderTotal: {
+          currencyID: order.currency,
+          value: payment_amount
+        },
+        ShipToAddress: address_options,
+        ShippingMethod: 'Shipping Method Name Goes Here',
+        PaymentAction: 'Sale'
+      }
     end
 
     def address_options
