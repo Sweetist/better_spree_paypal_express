@@ -73,7 +73,7 @@ module Spree
           ActiveRecord::Base.transaction do
             while States[@order.state] < States['complete'] && @order.next; end
             @account_payment.process_and_capture if @order.completed? && @account_payment.checkout?
-            add_payments({async: false})
+            add_payments
           end
           @order.update_columns(user_id: current_spree_user.try(:id)) if @order.user_id.nil?
           flash[:success] = 'Payment created'
@@ -169,17 +169,11 @@ module Spree
 
     # uses for add child payments in Sidekiq when create
     # to resolve timeout issues
-    def add_payments(options = {})
-      opts = { async: true }
-      opts.merge!(options)
-      return unless payments_attributes && @account_payment
+    def add_payments
       @account_payment.reload
-      if Rails.env.test? || opts[:async]
-        @account_payment.add_and_process_child_payments(payments_attributes)
-      else
-        AccountPaymentProcessWorker
-          .perform_async(@account_payment.id, payments_attributes)
-      end
+      return unless payments_attributes && @account_payment
+
+      @account_payment.add_and_process_child_payments(payments_attributes)
     end
 
     def orders_amount_sum
